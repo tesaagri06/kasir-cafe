@@ -1,66 +1,295 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Kasir Cafe — Point of Sale System
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplikasi kasir berbasis web untuk manajemen cafe, dibangun dengan **Laravel 10**. Mendukung dua mode akses: antarmuka web (Blade + session) untuk penggunaan harian, dan REST API (JWT) untuk integrasi sistem eksternal.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+##Live Demo
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+> Deployed di **Railway**
+> [http://kasir-cafe-production.up.railway.app](http://kasir-cafe-production.up.railway.app)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Tech Stack
+| Kategori | Teknologi |
+| Backend | Laravel 10, PHP 8.2 |
+| Auth (API) | JWT (`php-open-source-saver/jwt-auth`), Basic Auth, API Key |
+| Auth (Web) | Laravel Session (`Auth::guard('web')`) |
+| Frontend | Blade, Tailwind CSS, Vite |
+| Database | MySQL (via PDO) |
+| Deployment | Railway + Nixpacks |
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+---
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+## Fitur
+### Manajemen
+- **Menu** — tambah, edit, hapus, toggle aktif/nonaktif, manajemen stok
+- **Kategori** — kelola kategori menu (dengan icon & status)
+- **Transaksi** — buat transaksi baru dengan kalkulasi otomatis (subtotal + pajak 3% = grand total), walk-in & customer terdaftar, filter by status/tanggal/eco_packaging
+- **Laporan** — overview pendapatan, laporan harian, best-selling, sustainability report (SDGs)
+### Autentikasi & Akses
+- Login / Register (Web & API)
+- **3 metode auth API:**
+  - `Authorization: Bearer <token>` — JWT Token
+  - `Authorization: Basic <base64>` — HTTP Basic Auth
+  - `X-API-KEY: <key>` — API Key per-user (di-generate otomatis saat register)
+- Role-based access control: `admin`, `kasir`, `customer`
+- JWT payload menyertakan `role`, `username`, `nama_lengkap`
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Fitur Khusus
+- 🌱 **Eco Packaging** — tracking permintaan kemasan ramah lingkungan (opt-in per transaksi)
+- ♻️ **Food Waste Log** — pencatatan sisa makanan dengan alasan (kadaluarsa / rusak / sisa_hari / lainnya)
+- 📊 **SDGs Score** — sistem penilaian A–E berdasarkan % eco packaging dan jumlah food waste
+- 👤 **Profil** — update data diri & ganti password
+- ⚙️ **Pengaturan** — konfigurasi data cafe (key-value store)
 
-## Laravel Sponsors
+---
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+## Arsitektur
+```
+kasir-cafe/
+├── app/
+│   ├── Http/
+│   │   ├── Controllers/
+│   │   │   ├── Api/                  # JSON response controllers
+│   │   │   │   ├── AuthController
+│   │   │   │   ├── MenuController
+│   │   │   │   ├── KategoriController
+│   │   │   │   ├── TransaksiController
+│   │   │   │   └── ReportController
+│   │   │   └── Web/                  # Blade view controllers
+│   │   │       ├── AuthWebController
+│   │   │       ├── DashboardController
+│   │   │       ├── MenuWebController
+│   │   │       ├── KategoriWebController
+│   │   │       ├── TransaksiWebController
+│   │   │       ├── LaporanWebController
+│   │   │       ├── PengaturanWebController
+│   │   │       └── ProfilWebController
+│   │   └── Middleware/
+│   │       ├── WebAuthMiddleware      # Guard session untuk web
+│   │       ├── ApiKeyMiddleware       # Header X-API-KEY
+│   │       ├── BasicAuthMiddleware    # HTTP Basic Auth
+│   │       └── RoleMiddleware         # Role check (kasir/admin/customer)
+│   └── Models/
+│       ├── User                       # JWTSubject, custom getAuthPassword()
+│       ├── Menu                       # scope: aktif, tersedia; method: kurangiStok()
+│       ├── Kategori                   # scope: aktif; relation: menuAktif()
+│       ├── Transaksi                  # scope: selesai, periode; static: hitungPajak()
+│       ├── DetailTransaksi
+│       ├── FoodWasteLog               # scope: periode
+│       └── Setting                    # Key-value store; static: get(), set(), getAll()
+├── database/
+│   ├── migrations/                    # 8 migration files
+│   └── seeders/
+│       ├── UserSeeder                 # Default accounts
+│       ├── KategoriSeeder
+│       ├── MenuSeeder
+│       └── SettingsSeeder
+├── routes/
+│   ├── web.php                        # Web routes (middleware: web.auth)
+│   └── api.php                        # API routes (middleware: auth:api / basic.auth / api.key)
+├── Procfile                           # Railway: migrate --seed on release
+└── nixpacks.toml                      # PHP 8.2 + Node 20 build config
+```
 
-### Premium Partners
+---
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+## Instalasi Lokal
+### Prasyarat
+- PHP >= 8.2
+- Composer
+- Node.js >= 20 & NPM
+- MySQL
+### Langkah-langkah
+```bash
+# 1. Clone repository
+git clone https://github.com/tesaagri06/kasir-cafe.git
+cd kasir-cafe
+# 2. Install dependency PHP
+composer install
+# 3. Install dependency JS & build asset
+npm install && npm run build
+# 4. Salin file environment
+cp .env.example .env
+# 5. Generate app key
+php artisan key:generate
+# 6. Generate JWT secret
+php artisan jwt:secret
+# 7. Konfigurasi .env
+# DB_CONNECTION=mysql
+# DB_HOST=127.0.0.1
+# DB_PORT=3306
+# DB_DATABASE=kasir_cafe
+# DB_USERNAME=root
+# DB_PASSWORD=
+# 8. Jalankan migrasi & seeder
+php artisan migrate --seed
+# 9. Jalankan server
+php artisan serve
+```
+Akses di: `http://localhost:8000`
 
-## Contributing
+---
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## API Reference
+Base URL: `/api`
+### Health Check
+```
+GET /api/ping
+```
+### Auth
+| Method | Endpoint | Akses | Deskripsi |
+| POST | `/api/auth/register` | Public | Register (role otomatis: `customer`, API key di-generate) |
+| POST | `/api/auth/login` | Public | Login dengan `username` + `password` |
+| POST | `/api/auth/logout` | JWT | Logout & invalidate token |
+| POST | `/api/auth/refresh` | JWT | Refresh JWT token |
+| GET | `/api/auth/me` | JWT / Basic / API Key | Data user aktif |
 
-## Code of Conduct
+### Kategori
+| Method | Endpoint | Akses | Deskripsi |
+| GET | `/api/kategori` | JWT | List kategori |
+| GET | `/api/kategori/{id}` | JWT | Detail kategori |
+| POST | `/api/kategori` | JWT (kasir/admin) | Tambah kategori |
+| PATCH | `/api/kategori/{id}` | JWT (kasir/admin) | Update kategori |
+| DELETE | `/api/kategori/{id}` | JWT (kasir/admin) | Hapus kategori |
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### Menu
+| Method | Endpoint | Akses | Deskripsi |
+| GET | `/api/menu` | JWT / API Key | List menu |
+| GET | `/api/menu/{id}` | JWT | Detail menu |
+| POST | `/api/menu` | JWT (kasir/admin) | Tambah menu |
+| PATCH | `/api/menu/{id}` | JWT (kasir/admin) | Update menu |
+| DELETE | `/api/menu/{id}` | JWT (kasir/admin) | Hapus menu |
 
-## Security Vulnerabilities
+### Transaksi
+| Method | Endpoint | Akses | Deskripsi |
+| GET | `/api/transaksi` | JWT | List transaksi (customer hanya miliknya) |
+| POST | `/api/transaksi` | JWT | Buat transaksi (atomic, lock stok) |
+| GET | `/api/transaksi/{id}` | JWT | Detail transaksi |
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+**Query params GET `/api/transaksi`:**
+`search`, `status`, `tanggal_dari`, `tanggal_sampai`, `eco_packaging`, `per_page` (max 50)
+**Body POST `/api/transaksi`:**
+```json
+{
+  "nama_customer": "Budi",
+  "no_meja": 3,
+  "eco_packaging": true,
+  "catatan": "Tanpa es",
+  "items": [
+    { "id_menu": 1, "qty": 2 },
+    { "id_menu": 3, "qty": 1 }
+  ]
+}
+```
 
-## License
+### Laporan
+| Method | Endpoint | Akses | Deskripsi |
+| GET | `/api/laporan/overview` | JWT (kasir/admin) | Ringkasan pendapatan + SDGs |
+| GET | `/api/laporan/harian` | JWT (kasir/admin) | Laporan per hari |
+| GET | `/api/laporan/best-selling` | JWT (kasir/admin) | Ranking menu terlaris |
+| GET | `/api/laporan/sustainability` | JWT (kasir/admin) | SDGs score (grade A–E) |
+| POST | `/api/laporan/food-waste` | JWT (kasir/admin) | Catat food waste |
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+**Query params laporan:** `tanggal_dari`, `tanggal_sampai` (default: bulan berjalan)
+
+**Body POST `/api/laporan/food-waste`:**
+```json
+{
+  "id_menu": 2,
+  "jumlah": 5,
+  "alasan": "sisa_hari",
+  "catatan": "Tutup lebih awal"
+}
+```
+`alasan` enum: `kadaluarsa` | `rusak` | `sisa_hari` | `lainnya`
+
+### Autentikasi API
+```
+# JWT Bearer Token
+Authorization: Bearer <token>
+# Basic Auth
+Authorization: Basic <base64(username:password)>
+# API Key
+X-API-KEY: <api_key>
+```
+
+---
+
+## Role & Hak Akses
+| Role | Hak Akses |
+| `admin` | Akses penuh semua fitur |
+| `kasir` | Manajemen menu, kategori, transaksi, laporan |
+| `customer` | Lihat menu, buat transaksi, lihat riwayat transaksi milik sendiri |
+
+> Role di-encode langsung dalam JWT payload sehingga tidak perlu query database ulang saat validasi.
+
+---
+
+## Database Schema
+```
+users            → id_user, username, password_hash, nama_lengkap, email, telepon, role, api_key
+kategori         → id_kategori, nama_kategori, deskripsi, icon, status
+menu             → id_menu, nama_menu, harga, stok, id_kategori (FK nullable), status_menu
+transaksi        → id_transaksi, customer_id (FK nullable), nama_customer, no_meja,
+                    total, pajak, grand_total, status, catatan, eco_packaging
+detail_transaksi → id_detail, id_transaksi (FK), id_menu (FK), qty, harga_satuan, subtotal
+food_waste_log   → id, id_menu (FK), jumlah, alasan, catatan
+settings         → setting_key (PK string), setting_value
+```
+
+**Catatan desain:**
+- `customer_id` pada transaksi `nullOnDelete` — histori keuangan tetap ada walau user dihapus
+- `id_kategori` pada menu `nullOnDelete` — menu tetap ada walau kategori dihapus
+- `eco_packaging` default `false` — customer harus opt-in secara sadar
+- Pajak dihitung 3% dari subtotal, disimpan sebagai integer (Rupiah, tanpa desimal)
+
+---
+
+## 🌱 SDGs Integration
+SDGs Score dihitung otomatis dari dua komponen:
+| Komponen | Bobot | Keterangan |
+| Eco Packaging | 60% | % transaksi yang request eco packaging |
+| Food Waste | 40% | Makin banyak kejadian = makin rendah score |
+
+**Grade:** A ≥85 → B ≥70 → C ≥55 → D ≥40 → E <40
+
+**SDGs Goals yang dipantau:**
+- SDG 12 — Konsumsi & Produksi Bertanggung Jawab
+- SDG 13 — Penanganan Perubahan Iklim
+- SDG 2 — Tanpa Kelaparan (food waste monitoring)
+
+---
+
+## Deployment (Railway)
+Project ini menggunakan **Nixpacks** untuk build otomatis di Railway.
+```toml
+# nixpacks.toml — PHP 8.2 + Node 20
+[phases.install]
+cmds = ["composer install --no-dev", "npm ci", "npm run build"]
+
+[phases.build]
+cmds = ["php artisan config:cache", "php artisan route:cache", "php artisan view:cache"]
+```
+
+```
+# Procfile
+release: php artisan migrate --seed --force
+web: php artisan serve --host=0.0.0.0 --port=$PORT
+```
+
+*Environment variables wajib di Railway:*
+```
+APP_KEY=
+APP_URL=http://kasir-cafe-production.up.railway.app
+JWT_SECRET=
+DB_CONNECTION=mysql
+DB_HOST=
+DB_DATABASE=
+DB_USERNAME=
+DB_PASSWORD=
+
+## Lisensi
+[MIT License](LICENSE)
