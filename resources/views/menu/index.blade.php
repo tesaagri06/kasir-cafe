@@ -17,7 +17,7 @@
         <input
             type="text"
             name="search"
-            class="form-control filter-search"
+            class="filter-search form-control"
             placeholder="Cari nama menu..."
             value="{{ request('search') }}"
         >
@@ -94,16 +94,21 @@
                             </form>
 
                             {{-- Delete --}}
-                            <form method="POST"
+                            <button type="button"
+                                    class="action-icon action-icon-delete"
+                                    title="Hapus menu"
+                                    onclick="showDeleteModal({{ $menu->id_menu }}, '{{ addslashes($menu->nama_menu) }}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+
+                            {{-- Hidden form untuk delete --}}
+                            <form id="form-delete-{{ $menu->id_menu }}"
+                                  method="POST"
                                   action="{{ route('menu.destroy', $menu->id_menu) }}"
-                                  onsubmit="return confirm('Hapus menu \'{{ $menu->nama_menu }}\'? Tindakan ini tidak bisa dibatalkan.')">
+                                  style="display:none;">
                                 @csrf @method('DELETE')
-                                <button type="submit"
-                                        class="action-icon action-icon-delete"
-                                        title="Hapus menu">
-                                    <i class="fas fa-trash"></i>
-                                </button>
                             </form>
+
                         </div>
                     </td>
                 </tr>
@@ -127,4 +132,68 @@
     @endif
 
 </div>
+
+{{-- Modal Konfirmasi Hapus --}}
+<div id="deleteModal" style="
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.5);
+    z-index:9999;
+    align-items:center;
+    justify-content:center;">
+    <div style="
+        background:#fff;
+        border-radius:12px;
+        padding:24px;
+        width:90%;
+        max-width:400px;
+        text-align:center;
+        box-shadow:0 4px 20px rgba(0,0,0,0.2);">
+        <i class="fas fa-trash" style="font-size:32px;color:#e74c3c;margin-bottom:12px;display:block;"></i>
+        <h3 style="margin:0 0 8px;font-size:16px;">Hapus Menu</h3>
+        <p id="deleteModalText" style="color:#666;font-size:14px;margin-bottom:20px;"></p>
+        <div style="display:flex;gap:10px;justify-content:center;">
+            <button onclick="closeDeleteModal()"
+                    style="padding:10px 24px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer;font-size:14px;">
+                Batal
+            </button>
+            <button id="confirmDeleteBtn"
+                    style="padding:10px 24px;border-radius:8px;border:none;background:#e74c3c;color:#fff;cursor:pointer;font-size:14px;">
+                Hapus
+            </button>
+        </div>
+    </div>
+</div>
+
 @endsection
+
+@push('scripts')
+<script>
+    var deleteTargetId = null;
+
+    function showDeleteModal(id, name) {
+        deleteTargetId = id;
+        document.getElementById('deleteModalText').textContent =
+            'Yakin hapus menu "' + name + '"? Tindakan ini tidak bisa dibatalkan.';
+        var modal = document.getElementById('deleteModal');
+        modal.style.display = 'flex';
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').style.display = 'none';
+        deleteTargetId = null;
+    }
+
+    document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+        if (deleteTargetId) {
+            document.getElementById('form-delete-' + deleteTargetId).submit();
+        }
+    });
+
+    // Tutup modal kalau klik area gelap di luar
+    document.getElementById('deleteModal').addEventListener('click', function(e) {
+        if (e.target === this) closeDeleteModal();
+    });
+</script>
+@endpush
